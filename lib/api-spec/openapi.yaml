@@ -1,0 +1,598 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: RapidAid Crisis Response Platform API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: incidents
+    description: User-reported incidents (accidents, harassment, fog, suspicious activity)
+  - name: zones
+    description: Safety zones, fog zones, traffic stagnation areas
+  - name: hospitals
+    description: Hospitals and emergency responders
+  - name: alerts
+    description: Active alerts broadcast to users
+  - name: locations
+    description: Live user location pings (for traffic stagnation detection)
+  - name: routes
+    description: Safe route planning
+  - name: dashboard
+    description: Aggregate dashboard data
+  - name: live
+    description: Live data ingest from weather, news and traffic sources
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /incidents:
+    get:
+      operationId: listIncidents
+      tags: [incidents]
+      summary: List incidents
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [active, resolved, all] }
+        - name: type
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 100, maximum: 500 }
+      responses:
+        "200":
+          description: List of incidents
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Incident" }
+    post:
+      operationId: createIncident
+      tags: [incidents]
+      summary: Report a new incident
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateIncidentInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Incident" }
+  /incidents/{id}:
+    get:
+      operationId: getIncident
+      tags: [incidents]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Incident
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Incident" }
+    patch:
+      operationId: updateIncident
+      tags: [incidents]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateIncidentInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Incident" }
+
+  /zones/safety:
+    get:
+      operationId: listSafetyZones
+      tags: [zones]
+      summary: Safety scores per road segment
+      responses:
+        "200":
+          description: List of safety zones
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SafetyZone" }
+  /zones/fog:
+    get:
+      operationId: listFogZones
+      tags: [zones]
+      summary: Live fog and low-visibility zones
+      responses:
+        "200":
+          description: Fog zones
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/FogZone" }
+  /zones/traffic:
+    get:
+      operationId: listTrafficStagnation
+      tags: [zones]
+      summary: Detected traffic stagnation clusters (possible accidents)
+      responses:
+        "200":
+          description: Traffic stagnation areas
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TrafficStagnation" }
+
+  /hospitals:
+    get:
+      operationId: listHospitals
+      tags: [hospitals]
+      summary: List hospitals and emergency responders
+      responses:
+        "200":
+          description: Hospitals
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Hospital" }
+  /hospitals/{id}/notify:
+    post:
+      operationId: notifyHospital
+      tags: [hospitals]
+      summary: Notify a hospital of a nearby emergency
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NotifyHospitalInput" }
+      responses:
+        "200":
+          description: Notification sent
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Hospital" }
+
+  /alerts:
+    get:
+      operationId: listAlerts
+      tags: [alerts]
+      summary: Active alerts
+      responses:
+        "200":
+          description: Alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Alert" }
+    post:
+      operationId: createAlert
+      tags: [alerts]
+      summary: Broadcast a new alert
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateAlertInput" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Alert" }
+  /alerts/{id}/dismiss:
+    post:
+      operationId: dismissAlert
+      tags: [alerts]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Dismissed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Alert" }
+
+  /locations/ping:
+    post:
+      operationId: pingLocation
+      tags: [locations]
+      summary: Report a live user location ping
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PingLocationInput" }
+      responses:
+        "200":
+          description: Ping recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PingResult" }
+
+  /routes/safe:
+    post:
+      operationId: planSafeRoute
+      tags: [routes]
+      summary: Plan a women-safe route between two points
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SafeRouteInput" }
+      responses:
+        "200":
+          description: Suggested route
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SafeRouteResult" }
+
+  /live/refresh:
+    post:
+      operationId: refreshLiveData
+      tags: [live]
+      summary: Trigger live data ingest (weather, news, traffic AI) for an area
+      parameters:
+        - name: lat
+          in: query
+          schema: { type: number }
+        - name: lng
+          in: query
+          schema: { type: number }
+        - name: name
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Ingest result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LiveRefreshResult" }
+
+  /dashboard/summary:
+    get:
+      operationId: dashboardSummary
+      tags: [dashboard]
+      summary: Live ops dashboard summary
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DashboardSummary" }
+  /dashboard/activity:
+    get:
+      operationId: dashboardActivity
+      tags: [dashboard]
+      summary: Recent activity feed across the platform
+      responses:
+        "200":
+          description: Activity feed
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ActivityItem" }
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string }
+
+    IncidentType:
+      type: string
+      enum: [accident, harassment, fog, medical, fire, traffic, suspicious, other]
+
+    IncidentSeverity:
+      type: string
+      enum: [low, medium, high, critical]
+
+    IncidentStatus:
+      type: string
+      enum: [active, verified, resolved]
+
+    Incident:
+      type: object
+      required: [id, type, severity, status, lat, lng, title, description, reportCount, createdAt, source]
+      properties:
+        id: { type: integer }
+        type: { $ref: "#/components/schemas/IncidentType" }
+        severity: { $ref: "#/components/schemas/IncidentSeverity" }
+        status: { $ref: "#/components/schemas/IncidentStatus" }
+        lat: { type: number }
+        lng: { type: number }
+        title: { type: string }
+        description: { type: string }
+        address: { type: string, nullable: true }
+        reporter: { type: string, nullable: true }
+        source: { type: string, description: "user_report | news:gdelt | weather:open-meteo | traffic:ai-detection" }
+        externalId: { type: string, nullable: true }
+        url: { type: string, nullable: true }
+        reportCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time, nullable: true }
+
+    CreateIncidentInput:
+      type: object
+      required: [type, severity, lat, lng, title, description]
+      properties:
+        type: { $ref: "#/components/schemas/IncidentType" }
+        severity: { $ref: "#/components/schemas/IncidentSeverity" }
+        lat: { type: number }
+        lng: { type: number }
+        title: { type: string }
+        description: { type: string }
+        address: { type: string }
+        reporter: { type: string }
+
+    UpdateIncidentInput:
+      type: object
+      properties:
+        status: { $ref: "#/components/schemas/IncidentStatus" }
+        severity: { $ref: "#/components/schemas/IncidentSeverity" }
+
+    SafetyZone:
+      type: object
+      required: [id, roadName, score, lat, lng, radius, factors]
+      properties:
+        id: { type: integer }
+        roadName: { type: string }
+        score: { type: number, description: "0 (most unsafe) to 100 (safest)" }
+        lat: { type: number }
+        lng: { type: number }
+        radius: { type: number, description: "meters" }
+        factors:
+          type: array
+          items: { type: string }
+        timeOfDayRisk: { type: string, enum: [day, dusk, night, all] }
+        incidentCount: { type: integer }
+
+    FogZone:
+      type: object
+      required: [id, lat, lng, radius, visibilityMeters, severity, detectedAt]
+      properties:
+        id: { type: integer }
+        lat: { type: number }
+        lng: { type: number }
+        radius: { type: number }
+        visibilityMeters: { type: integer }
+        severity: { type: string, enum: [light, moderate, dense, hazardous] }
+        roadName: { type: string, nullable: true }
+        detectedAt: { type: string, format: date-time }
+
+    TrafficStagnation:
+      type: object
+      required: [id, lat, lng, radius, stagnantMinutes, vehicleCount, suspicionScore]
+      properties:
+        id: { type: integer }
+        lat: { type: number }
+        lng: { type: number }
+        radius: { type: number }
+        stagnantMinutes: { type: integer }
+        vehicleCount: { type: integer }
+        suspicionScore: { type: number, description: "0-100, higher means more likely an emergency" }
+        roadName: { type: string, nullable: true }
+        detectedAt: { type: string, format: date-time }
+
+    Hospital:
+      type: object
+      required: [id, name, lat, lng, capacity, status, type]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        type: { type: string, enum: [hospital, clinic, fire_station, police, ambulance] }
+        lat: { type: number }
+        lng: { type: number }
+        capacity: { type: integer, description: "available beds / units" }
+        status: { type: string, enum: [available, alerted, responding, full] }
+        phone: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        lastNotifiedAt: { type: string, format: date-time, nullable: true }
+        responseTimeMins: { type: integer, nullable: true }
+
+    NotifyHospitalInput:
+      type: object
+      required: [incidentId]
+      properties:
+        incidentId: { type: integer }
+        message: { type: string }
+
+    Alert:
+      type: object
+      required: [id, severity, title, message, lat, lng, radius, createdAt, active, source]
+      properties:
+        id: { type: integer }
+        severity: { type: string, enum: [info, warning, danger, critical] }
+        title: { type: string }
+        message: { type: string }
+        category: { type: string, enum: [incident, fog, traffic, safety, weather, system] }
+        lat: { type: number }
+        lng: { type: number }
+        radius: { type: number, description: "alert radius in meters" }
+        active: { type: boolean }
+        source: { type: string, description: "user_report | weather:open-meteo | news:gdelt | traffic:ai-detection | system" }
+        externalId: { type: string, nullable: true }
+        url: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time, nullable: true }
+        affectedUsers: { type: integer }
+
+    CreateAlertInput:
+      type: object
+      required: [severity, title, message, lat, lng, radius]
+      properties:
+        severity: { type: string, enum: [info, warning, danger, critical] }
+        title: { type: string }
+        message: { type: string }
+        category: { type: string, enum: [incident, fog, traffic, safety, weather, system] }
+        lat: { type: number }
+        lng: { type: number }
+        radius: { type: number }
+        expiresInMinutes: { type: integer }
+
+    PingLocationInput:
+      type: object
+      required: [sessionId, lat, lng]
+      properties:
+        sessionId: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+        speed: { type: number, description: "meters per second, 0 if stationary" }
+
+    PingResult:
+      type: object
+      required: [recorded, nearbyAlerts, nearbyIncidents]
+      properties:
+        recorded: { type: boolean }
+        nearbyAlerts:
+          type: array
+          items: { $ref: "#/components/schemas/Alert" }
+        nearbyIncidents:
+          type: array
+          items: { $ref: "#/components/schemas/Incident" }
+
+    SafeRouteInput:
+      type: object
+      required: [originLat, originLng, destLat, destLng]
+      properties:
+        originLat: { type: number }
+        originLng: { type: number }
+        destLat: { type: number }
+        destLng: { type: number }
+        timeOfDay: { type: string, enum: [day, dusk, night] }
+
+    SafeRoutePoint:
+      type: object
+      required: [lat, lng]
+      properties:
+        lat: { type: number }
+        lng: { type: number }
+
+    SafeRouteResult:
+      type: object
+      required: [path, safetyScore, distanceKm, durationMins, warnings]
+      properties:
+        path:
+          type: array
+          items: { $ref: "#/components/schemas/SafeRoutePoint" }
+        safetyScore: { type: number }
+        distanceKm: { type: number }
+        durationMins: { type: number }
+        warnings:
+          type: array
+          items: { type: string }
+        avoidedZones:
+          type: array
+          items: { type: string }
+
+    DashboardSummary:
+      type: object
+      required: [activeIncidents, criticalAlerts, hospitalsAvailable, fogZones, avgResponseMins, safetyScore, incidentsByType]
+      properties:
+        activeIncidents: { type: integer }
+        criticalAlerts: { type: integer }
+        hospitalsAvailable: { type: integer }
+        hospitalsTotal: { type: integer }
+        fogZones: { type: integer }
+        trafficStagnationZones: { type: integer }
+        avgResponseMins: { type: number }
+        safetyScore: { type: number, description: "Overall city safety score 0-100" }
+        incidentsByType:
+          type: array
+          items:
+            type: object
+            required: [type, count]
+            properties:
+              type: { type: string }
+              count: { type: integer }
+        incidentsBySeverity:
+          type: array
+          items:
+            type: object
+            required: [severity, count]
+            properties:
+              severity: { type: string }
+              count: { type: integer }
+        last24hIncidents: { type: integer }
+
+    LiveIngestSummary:
+      type: object
+      required: [city, weatherAlertsCreated, fogZonesCreated, newsIncidentsCreated]
+      properties:
+        city: { type: string }
+        weatherAlertsCreated: { type: integer }
+        fogZonesCreated: { type: integer }
+        newsIncidentsCreated: { type: integer }
+        trafficZones: { type: integer }
+        trafficAccidentAlerts: { type: integer }
+        weather:
+          type: object
+          properties:
+            temperature: { type: number }
+            windKmh: { type: number }
+            visibilityM: { type: integer }
+            weatherCode: { type: integer }
+            precipitation: { type: number }
+            humidity: { type: number }
+
+    LiveRefreshResult:
+      type: object
+      required: [ok, summary]
+      properties:
+        ok: { type: boolean }
+        summary:
+          type: array
+          items: { $ref: "#/components/schemas/LiveIngestSummary" }
+
+    ActivityItem:
+      type: object
+      required: [id, kind, message, timestamp]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [incident, alert, hospital, fog, traffic, route] }
+        severity: { type: string, enum: [info, warning, danger, critical] }
+        message: { type: string }
+        location: { type: string, nullable: true }
+        timestamp: { type: string, format: date-time }
